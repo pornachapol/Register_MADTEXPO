@@ -321,8 +321,8 @@
 
     <script>
         // Google Apps Script API URL
-        const API_URL = 'https://script.google.com/macros/s/AKfycbw9WYOjpoM228W42d-TuY4cCLkyAn8VO9zOkNjHgGhJX2OkpfhILyX9U9uLCr9PdnjjBQ/exec';
-
+        const apiUrl = "https://script.google.com/macros/s/AKfycbw9WYOjpoM228W42d-TuY4cCLkyAn8VO9zOkNjHgGhJX20kpfhlLyX9U9uLCr9PdnjjBQ/exec";
+        
         // ข้อมูล Demo สำหรับ fallback
         const demoUsers = [
             'สมชาย ใจดี',
@@ -959,4 +959,11 @@
         });
     </script>
 </body>
+function goHome() {
+  window.location.href = "index.html";
+}
+
+function goToRegister() {
+  window.location.href = "register.html"; // ← เปลี่ยนถ้าใช้ชื่ออื่น
+}
 </html>
