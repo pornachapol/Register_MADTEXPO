@@ -391,52 +391,73 @@
 
             try {
                 // เรียกใช้ Google Sheets API เพื่อค้นหาในชีต "ผู้เข้าร่วมงาน"
-                const response = await fetch(`${API_URL}?action=checkParticipant&name=${encodeURIComponent(userName)}`);
+                const formData = new FormData();
+                formData.append('action', 'checkParticipant');
+                formData.append('name', userName);
+                
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
                 const data = await response.json();
                 
                 console.log('API Response for checkParticipant:', data);
                 
                 if (data.success && data.exists) {
+                    // พบชื่อในฐานข้อมูล Google Sheets
                     const userData = {
-                    userId: data.participant.userId,
+                        userId: data.participant.userId || data.participant.user_id,
                         name: data.participant.name,
-                        email: data.participant.email,
-                        phone: data.participant.phone,
-                        booths: [false, false, false, false, false],// รอแก้
+                        booths: [false, false, false, false, false], // จะอัพเดตจาก API
                         registeredAt: new Date().toISOString()
                     };
-
+                    
+                    console.log('Found participant:', userData);
+                    
+                    // บันทึกข้อมูลใน localStorage ก่อน
                     localStorage.setItem('currentUser', JSON.stringify(userData));
-                    await getBoothStatus(userData.userId);
-
-                    document.getElementById('registerResult').innerHTML =
-                        '<div class="success">✅ พบชื่อของคุณแล้ว! กำลังสร้าง QR Code...</div>';
-
+                    
+                    document.getElementById('registerResult').innerHTML = 
+                        '<div class="success">✅ พบชื่อของคุณแล้ว! กำลังโหลดสถานะบูธ...</div>';
+                    
+                    // ดึงสถานะบูธจาก Google Sheets ก่อนแสดงหน้า QR
+                    const boothSuccess = await getBoothStatus(userData.userId);
+                    
+                    // ดึงข้อมูลที่อัพเดตแล้วจาก localStorage
+                    const updatedUserData = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                    
+                    document.getElementById('registerResult').innerHTML = 
+                        '<div class="success">✅ กำลังสร้าง QR Code...</div>';
+                    
                     setTimeout(() => {
-                        showUserQR(userData);
-                    }, 1000);
+                        showUserQR(updatedUserData);
+                    }, 500);
                 } else {
-                document.getElementById('registerResult').innerHTML = 
-                    '<div class="error">❌ ไม่พบชื่อของคุณในระบบ<br><br>' +
-                  '📝 กรุณาตรวจสอบการสะกดชื่อ หรือ<br>' +
-                  '📋 <a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank">ไปลงทะเบียนที่ Google Form</a></div>' +
-                  `<div class="debug" style="margin-top: 20px;">
-                    <p><strong>userId:</strong> ${userData.userId}</p>
-                    <p><strong>name:</strong> ${userData.name}</p>
-                    <p><strong>email:</strong> ${userData.email}</p>
-                    <p><strong>phone:</strong> ${userData.phone}</p>
-                    <p><strong>booths:</strong> ${userData.booths.join(', ')}</p>
-                    <p><strong>registeredAt:</strong> ${userData.registeredAt}</p>
-                  </div>`;
-
+                    console.log('Participant not found:', data);
+                    document.getElementById('registerResult').innerHTML = 
+                        '<div class="error">' +
+                        '<div style="font-size: 18px; margin-bottom: 15px;">❌ ไม่พบชื่อของคุณในระบบ</div>' +
+                        '<div style="margin-bottom: 10px;">📝 กรุณาตรวจสอบการสะกดชื่อ</div>' +
+                        '<div style="margin-bottom: 15px;">หรือ</div>' +
+                        '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 2px solid #ffc107; margin: 10px 0;">' +
+                        '<div style="color: #856404; font-weight: bold; margin-bottom: 10px;">📋 ยังไม่ได้ลงทะเบียน?</div>' +
+                        '<div style="margin-bottom: 10px;">กรุณาลงทะเบียนก่อนเข้าร่วมงาน</div>' +
+                        '<a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" ' +
+                        'style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; ' +
+                        'text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 10px;">' +
+                        '🔗 ลงทะเบียนที่นี่</a>' +
+                        '</div>' +
+                        '</div>';
+                }
             } catch (error) {
                 console.error('API Error:', error);
+                
+                // Fallback ใช้ข้อมูล demo ถ้า API ไม่สามารถเชื่อมต่อได้
                 setTimeout(() => {
                     checkRegistrationFallback(userName);
                 }, 1000);
             }
         }
-
 
         // ฟังก์ชัน fallback สำหรับข้อมูล demo
         function checkRegistrationFallback(userName) {
@@ -460,9 +481,19 @@
                 }, 1000);
             } else {
                 document.getElementById('registerResult').innerHTML = 
-                    '<div class="error">❌ ไม่พบชื่อของคุณในระบบ<br><br>' +
-                    '📝 กรุณาตรวจสอบการสะกดชื่อ หรือ<br>' +
-                    '📋 ไป Pre Register ที่ Google Form ก่อน</div>';
+                    '<div class="error">' +
+                    '<div style="font-size: 18px; margin-bottom: 15px;">❌ ไม่พบชื่อของคุณในระบบ</div>' +
+                    '<div style="margin-bottom: 10px;">📝 กรุณาตรวจสอบการสะกดชื่อ</div>' +
+                    '<div style="margin-bottom: 15px;">หรือ</div>' +
+                    '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 2px solid #ffc107; margin: 10px 0;">' +
+                    '<div style="color: #856404; font-weight: bold; margin-bottom: 10px;">📋 ยังไม่ได้ลงทะเบียน?</div>' +
+                    '<div style="margin-bottom: 10px;">กรุณาลงทะเบียนก่อนเข้าร่วมงาน</div>' +
+                    '<a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" ' +
+                    'style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; ' +
+                    'text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 10px;">' +
+                    '🔗 ลงทะเบียนที่นี่</a>' +
+                    '</div>' +
+                    '</div>';
             }
         }
 
@@ -533,7 +564,14 @@
             try {
                 console.log('Getting booth status for user:', userId);
                 // ดึงข้อมูลจาก Sheet "สถานะบูธ"
-                const response = await fetch(`${API_URL}?action=getBoothStatus&userId=${encodeURIComponent(userId)}&sheetName=สถานะบูธ`);
+                const formData = new FormData();
+                formData.append('action', 'getBoothStatus');
+                formData.append('userId', userId);
+                
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
                 const data = await response.json();
                 
                 console.log('API Response for getBoothStatus:', data);
@@ -634,7 +672,17 @@
             
             if (!userData) {
                 document.getElementById('stampResult').innerHTML = 
-                    '<div class="error">❌ ไม่พบ User ID นี้ในระบบ<br>กรุณาตรวจสอบชื่อหรือ User ID<br><br>หากยังไม่ได้ลงทะเบียน กรุณาลงทะเบียนที่<br><a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" style="color: #3498db;">https://forms.gle/2y12ALpP52XnCQ8W6</a></div>';
+                    '<div class="error">' +
+                    '<div style="font-size: 16px; margin-bottom: 10px;">❌ ไม่พบ User ID นี้ในระบบ</div>' +
+                    '<div style="margin-bottom: 10px;">กรุณาตรวจสอบชื่อหรือ User ID</div>' +
+                    '<div style="background: #fff3cd; padding: 10px; border-radius: 8px; border: 2px solid #ffc107; margin: 10px 0;">' +
+                    '<div style="color: #856404; font-weight: bold; margin-bottom: 8px;">📋 หากยังไม่ได้ลงทะเบียน</div>' +
+                    '<a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" ' +
+                    'style="display: inline-block; background: #007bff; color: white; padding: 8px 15px; ' +
+                    'text-decoration: none; border-radius: 5px; font-weight: bold;">' +
+                    '🔗 ลงทะเบียนที่นี่</a>' +
+                    '</div>' +
+                    '</div>';
                 return;
             }
             
@@ -683,7 +731,6 @@
                 formData.append('userId', currentStampUserId);
                 formData.append('boothId', selectedBoothForStamp);
                 formData.append('staffId', 'staff');
-                formData.append('sheetName', 'สถานะบูธ'); // ระบุ Sheet name สำหรับบันทึก stamp
                 
                 // เรียกใช้ Google Sheets API
                 const response = await fetch(API_URL, {
@@ -779,20 +826,27 @@
             try {
                 console.log('Searching user in Google Sheet:', userId);
                 // ใช้ action ที่ค้นหาใน Sheet "ผู้เข้าร่วมงาน" โดยใช้ column "user_id"
-                const response = await fetch(`${API_URL}?action=getUserByUserId&userId=${encodeURIComponent(userId)}&sheetName=ผู้เข้าร่วมงาน`);
+                const formData = new FormData();
+                formData.append('action', 'getUserByUserId');
+                formData.append('userId', userId);
+                
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
                 const data = await response.json();
                 
                 console.log('API Response for getUserByUserId:', data);
                 
                 if (data.success && data.user) {
-                  const userData = {
-                    userId: data.user.userId,
-                    name: data.user.name,
-                    booths: [false, false, false, false, false],
-                    registeredAt: new Date().toISOString()
+                    console.log('Found user in Google Sheet:', data.user);
+                    return {
+                        userId: data.user.userId || data.user.user_id,
+                        name: data.user.name,
+                        booths: [false, false, false, false, false], // จะอัพเดตจาก getBoothStatus
+                        registeredAt: new Date().toISOString()
                     };
                 }
-                
                 
                 console.log('User not found in Google Sheet, response:', data);
                 return null;
@@ -887,8 +941,13 @@
                         <h3>❌ ไม่พบข้อมูลผู้ใช้</h3>
                         <p><strong>User ID:</strong> ${userId}</p>
                         <p>ไม่พบข้อมูลในระบบ กรุณาตรวจสอบชื่อหรือ User ID</p>
-                        <p>หากยังไม่ได้ลงทะเบียน กรุณาลงทะเบียนที่</p>
-                        <a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" style="color: #3498db; display: block; margin-bottom: 10px;">https://forms.gle/2y12ALpP52XnCQ8W6</a>
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 2px solid #ffc107; margin: 15px 0;">
+                            <div style="color: #856404; font-weight: bold; margin-bottom: 10px;">📋 หากยังไม่ได้ลงทะเบียน</div>
+                            <a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" 
+                               style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; 
+                               text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 10px;">
+                               🔗 ลงทะเบียนที่นี่</a>
+                        </div>
                         <button class="btn btn-secondary" onclick="goHome()" style="margin-top: 10px;">กลับหน้าแรก</button>
                     </div>`;
             }
