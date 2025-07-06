@@ -26,8 +26,8 @@
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             text-align: center;
-            max-width: 400px;
-            width: 90%;
+            max-width: 420px;
+            width: 95%;
         }
 
         .page {
@@ -50,10 +50,7 @@
             font-size: 1.3rem;
         }
 
-        .input-group {
-            margin-bottom: 1.5rem;
-            text-align: left;
-        }
+        /* Input group styling handled above */
 
         label {
             display: block;
@@ -62,13 +59,19 @@
             font-weight: 500;
         }
 
-        input[type="text"], input[type="password"] {
+        input[type="text"], input[type="password"], input[type="tel"] {
             width: 100%;
             padding: 12px;
             border: 2px solid #e1e1e1;
             border-radius: 10px;
             font-size: 16px;
             transition: border-color 0.3s;
+        }
+        
+        .input-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+            width: 100%;
         }
 
         input[type="text"]:focus, input[type="password"]:focus {
@@ -205,8 +208,8 @@
             <h1>📝 ลงทะเบียนเข้าร่วมงาน</h1>
             
             <div class="input-group">
-                <label for="userName">กรุณากรอกชื่อของคุณ:</label>
-                <input type="text" id="userName" placeholder="ชื่อ-นามสกุล">
+                <label for="userPhone">กรุณากรอกเบอร์โทรศัพท์:</label>
+                <input type="tel" id="userPhone" placeholder="เบอร์โทรศัพท์ 10 หลัก (เช่น 0812345678)" maxlength="10" style="width: 100%; font-size: 18px; padding: 14px;">
             </div>
             
             <button class="btn" onclick="checkRegistration()">ยืนยันการลงทะเบียน</button>
@@ -298,6 +301,11 @@
                     <strong>บูธที่ 5</strong>
                 </button>
             </div>
+            
+            <div style="margin-top: 2rem; display: flex; gap: 10px; justify-content: center;">
+                <button class="btn btn-secondary" onclick="goHome()">กลับหน้าแรก</button>
+                <button class="btn btn-secondary" onclick="showStaffMenu()">เมนูเจ้าหน้าที่</button>
+            </div>
         </div>
 
         <!-- หน้า Confirm Stamp -->
@@ -323,13 +331,19 @@
         // Google Apps Script API URL
         const API_URL = 'https://script.google.com/macros/s/AKfycbw9WYOjpoM228W42d-TuY4cCLkyAn8VO9zOkNjHgGhJX2OkpfhILyX9U9uLCr9PdnjjBQ/exec';
 
-        // ข้อมูล Demo สำหรับ fallback
+        // ข้อมูล Demo สำหรับ fallback (เบอร์โทรที่ตัด 0 แล้ว)
+        const demoPhones = [
+            '812345678', // 0812345678
+            '923456789', // 0923456789
+            '634567890', // 0634567890
+            '745678901'  // 0745678901
+        ];
+        
         const demoUsers = [
-            'สมชาย ใจดี',
-            'สุธิดา มีใจ', 
-            'อนันต์ รักการเรียนรู้',
-            'นิรมล สุขใจ',
-            'พิมพ์ใส ใสใจ'
+            { phone: '812345678', name: 'สุธิดา มีใจ' },
+            { phone: '923456789', name: 'อนันต์ รักการเรียนรู้' },
+            { phone: '634567890', name: 'นิรมล สุขใจ' },
+            { phone: '745678901', name: 'พิมพ์ใส ใสใจ' }
         ];
 
         const boothNames = [
@@ -359,7 +373,7 @@
 
         function goToRegister() {
             showPage('register');
-            document.getElementById('userName').value = '';
+            document.getElementById('userPhone').value = '';
             document.getElementById('registerResult').innerHTML = '';
         }
 
@@ -376,14 +390,44 @@
             showPage('boothStaff');
         }
 
+        // ฟังก์ชันตรวจสอบและแปลงเบอร์โทร
+        function normalizePhone(phone) {
+            // ลบช่องว่างและอักขระพิเศษ
+            phone = phone.replace(/\D/g, '');
+            
+            // ตรวจสอบว่าเป็นเบอร์โทร 10 หลักหรือไม่
+            if (phone.length !== 10) {
+                return null;
+            }
+            
+            // ตรวจสอบว่าขึ้นต้นด้วย 0 หรือไม่
+            if (phone.charAt(0) !== '0') {
+                return null;
+            }
+            
+            // ตัดเลข 0 ด้านหน้าออก
+            return phone.substring(1);
+        }
+
         // ฟังก์ชันลงทะเบียน
         async function checkRegistration() {
-            const userName = document.getElementById('userName').value.trim();
-            if (!userName) {
+            const userPhone = document.getElementById('userPhone').value.trim();
+            
+            if (!userPhone) {
                 document.getElementById('registerResult').innerHTML = 
-                    '<div class="error">กรุณากรอกชื่อของคุณ</div>';
+                    '<div class="error">กรุณากรอกเบอร์โทรศัพท์</div>';
                 return;
             }
+
+            // ตรวจสอบและแปลงเบอร์โทร
+            const normalizedPhone = normalizePhone(userPhone);
+            if (!normalizedPhone) {
+                document.getElementById('registerResult').innerHTML = 
+                    '<div class="error">กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (10 หลัก เช่น 0646877333)</div>';
+                return;
+            }
+
+            console.log('Original phone:', userPhone, 'Normalized:', normalizedPhone);
 
             // แสดงข้อความกำลังตรวจสอบ
             document.getElementById('registerResult').innerHTML = 
@@ -393,7 +437,7 @@
                 // เรียกใช้ Google Sheets API เพื่อค้นหาในชีต "ผู้เข้าร่วมงาน"
                 const formData = new FormData();
                 formData.append('action', 'checkParticipant');
-                formData.append('name', userName);
+                formData.append('phone', normalizedPhone);  // ใช้เบอร์โทรที่ตัด 0 แล้ว
                 
                 const response = await fetch(API_URL, {
                     method: 'POST',
@@ -436,8 +480,8 @@
                     console.log('Participant not found:', data);
                     document.getElementById('registerResult').innerHTML = 
                         '<div class="error">' +
-                        '<div style="font-size: 18px; margin-bottom: 15px;">❌ ไม่พบชื่อของคุณในระบบ</div>' +
-                        '<div style="margin-bottom: 10px;">📝 กรุณาตรวจสอบการสะกดชื่อ</div>' +
+                        '<div style="font-size: 18px; margin-bottom: 15px;">❌ ไม่พบเบอร์โทรของคุณในระบบ</div>' +
+                        '<div style="margin-bottom: 10px;">📝 กรุณาตรวจสอบเบอร์โทรศัพท์</div>' +
                         '<div style="margin-bottom: 15px;">หรือ</div>' +
                         '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 2px solid #ffc107; margin: 10px 0;">' +
                         '<div style="color: #856404; font-weight: bold; margin-bottom: 10px;">📋 ยังไม่ได้ลงทะเบียน?</div>' +
@@ -454,19 +498,22 @@
                 
                 // Fallback ใช้ข้อมูล demo ถ้า API ไม่สามารถเชื่อมต่อได้
                 setTimeout(() => {
-                    checkRegistrationFallback(userName);
+                    checkRegistrationFallback(userPhone, normalizedPhone);
                 }, 1000);
             }
         }
 
         // ฟังก์ชัน fallback สำหรับข้อมูล demo
-        function checkRegistrationFallback(userName) {
-            if (demoUsers.includes(userName)) {
-                const userId = 'DEMO' + Date.now().toString().slice(-6);
+        function checkRegistrationFallback(userPhone, normalizedPhone) {
+            const demoUser = demoUsers.find(user => user.phone === normalizedPhone);
+            
+            if (demoUser) {
+                const userId = 'DEMO' + normalizedPhone;
                 
                 const userData = {
                     userId: userId,
-                    name: userName,
+                    name: demoUser.name,
+                    phone: normalizedPhone,
                     booths: [false, false, false, false, false],
                     registeredAt: new Date().toISOString()
                 };
@@ -474,7 +521,7 @@
                 localStorage.setItem('currentUser', JSON.stringify(userData));
                 
                 document.getElementById('registerResult').innerHTML = 
-                    '<div class="success">✅ พบชื่อของคุณในข้อมูล Demo! กำลังสร้าง QR Code...</div>';
+                    '<div class="success">✅ พบเบอร์โทรของคุณในข้อมูล Demo! กำลังสร้าง QR Code...</div>';
                 
                 setTimeout(() => {
                     showUserQR(userData);
@@ -482,8 +529,8 @@
             } else {
                 document.getElementById('registerResult').innerHTML = 
                     '<div class="error">' +
-                    '<div style="font-size: 18px; margin-bottom: 15px;">❌ ไม่พบชื่อของคุณในระบบ</div>' +
-                    '<div style="margin-bottom: 10px;">📝 กรุณาตรวจสอบการสะกดชื่อ</div>' +
+                    '<div style="font-size: 18px; margin-bottom: 15px;">❌ ไม่พบเบอร์โทรของคุณในระบบ</div>' +
+                    '<div style="margin-bottom: 10px;">📝 กรุณาตรวจสอบเบอร์โทรศัพท์</div>' +
                     '<div style="margin-bottom: 15px;">หรือ</div>' +
                     '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 2px solid #ffc107; margin: 10px 0;">' +
                     '<div style="color: #856404; font-weight: bold; margin-bottom: 10px;">📋 ยังไม่ได้ลงทะเบียน?</div>' +
@@ -759,14 +806,15 @@
                             `<div class="success">
                                 ✅ Stamp สำเร็จ!<br>
                                 ${userData.name} เข้าบูธที่ ${selectedBoothForStamp} แล้ว<br>
-                                <small>เวลา: ${new Date().toLocaleString('th-TH')}</small>
+                                <small>เวลา: ${new Date().toLocaleString('th-TH')}</small><br>
+                                <small style="color: #666;">กำลังกลับสู่เมนูเจ้าหน้าที่...</small>
                             </div>`;
                         
                         console.log('Stamp registered successfully');
                         
                         setTimeout(() => {
-                            goHome();
-                        }, 3000);
+                            showStaffMenu();
+                        }, 2000);
                     }
                 } else {
                     console.error('Failed to register stamp:', data.message || 'Unknown error');
@@ -809,12 +857,13 @@
                 `<div class="success">
                     ✅ Stamp สำเร็จ! (บันทึกในเครื่อง)<br>
                     ${userData.name} เข้าบูธที่ ${selectedBoothForStamp} แล้ว<br>
-                    <small>เวลา: ${new Date().toLocaleString('th-TH')}</small>
+                    <small>เวลา: ${new Date().toLocaleString('th-TH')}</small><br>
+                    <small style="color: #666;">กำลังกลับสู่เมนูเจ้าหน้าที่...</small>
                 </div>`;
             
             setTimeout(() => {
-                goHome();
-            }, 3000);
+                showStaffMenu();
+            }, 2000);
         }
 
         function goBackToQRStamp() {
@@ -825,24 +874,51 @@
         async function findUserDataFromAPI(userId) {
             try {
                 console.log('Searching user in Google Sheet:', userId);
-                // ใช้ action ที่ค้นหาใน Sheet "ผู้เข้าร่วมงาน" โดยใช้ column "user_id"
-                const formData = new FormData();
+                
+                // ลองค้นหาด้วย userId ก่อน
+                let formData = new FormData();
                 formData.append('action', 'getUserByUserId');
                 formData.append('userId', userId);
                 
-                const response = await fetch(API_URL, {
+                let response = await fetch(API_URL, {
                     method: 'POST',
                     body: formData
                 });
-                const data = await response.json();
+                let data = await response.json();
                 
                 console.log('API Response for getUserByUserId:', data);
                 
                 if (data.success && data.user) {
-                    console.log('Found user in Google Sheet:', data.user);
+                    console.log('Found user by userId in Google Sheet:', data.user);
                     return {
                         userId: data.user.userId || data.user.user_id,
                         name: data.user.name,
+                        phone: data.user.phone,
+                        booths: [false, false, false, false, false], // จะอัพเดตจาก getBoothStatus
+                        registeredAt: new Date().toISOString()
+                    };
+                }
+                
+                // ถ้าไม่เจอ ลองค้นหาด้วยเบอร์โทร (ในกรณีที่ userId เป็นเบอร์โทร)
+                console.log('Trying to search by phone number:', userId);
+                formData = new FormData();
+                formData.append('action', 'getUserByPhone');
+                formData.append('phone', userId);
+                
+                response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                data = await response.json();
+                
+                console.log('API Response for getUserByPhone:', data);
+                
+                if (data.success && data.user) {
+                    console.log('Found user by phone in Google Sheet:', data.user);
+                    return {
+                        userId: data.user.userId || data.user.user_id,
+                        name: data.user.name,
+                        phone: data.user.phone,
                         booths: [false, false, false, false, false], // จะอัพเดตจาก getBoothStatus
                         registeredAt: new Date().toISOString()
                     };
@@ -874,17 +950,21 @@
                 return {
                     userId: userId,
                     name: 'ผู้ทดสอบระบบ',
+                    phone: '123456789',
                     booths: [false, false, false, false, false],
                     registeredAt: new Date().toISOString()
                 };
             }
             
+            // ค้นหาจาก demo users
             for (let i = 0; i < demoUsers.length; i++) {
-                if (userId.includes(demoUsers[i].substring(0, 3))) {
-                    console.log('Found demo user:', demoUsers[i]); // debug
+                const demoUser = demoUsers[i];
+                if (userId === ('DEMO' + demoUser.phone) || userId === demoUser.phone) {
+                    console.log('Found demo user:', demoUser); // debug
                     return {
-                        userId: userId,
-                        name: demoUsers[i],
+                        userId: 'DEMO' + demoUser.phone,
+                        name: demoUser.name,
+                        phone: demoUser.phone,
                         booths: [false, false, false, false, false],
                         registeredAt: new Date().toISOString()
                     };
