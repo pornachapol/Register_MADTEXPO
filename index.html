@@ -416,19 +416,19 @@
                         showUserQR(userData);
                     }, 1000);
                 } else {
-                    document.getElementById('registerResult').innerHTML = 
-                        '<div class="error">❌ ไม่พบชื่อของคุณในระบบ<br><br>' +
-                        '📝 กรุณาตรวจสอบการสะกดชื่อ หรือ<br>' +
-                        '📋 <a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank">ไปลงทะเบียนที่ Google Form</a></div>';
-                        `<div class="debug">
-                        <p><strong>userId:</strong> ${userData.userId}</p>
-                        <p><strong>name:</strong> ${userData.name}</p>
-                        <p><strong>email:</strong> ${userData.email}</p>
-                        <p><strong>phone:</strong> ${userData.phone}</p>
-                        <p><strong>booths:</strong> ${userData.booths.join(', ')}</p>
-                        <p><strong>registeredAt:</strong> ${userData.registeredAt}</p>
-                        </div>`;
-                }
+                document.getElementById('registerResult').innerHTML = 
+                    '<div class="error">❌ ไม่พบชื่อของคุณในระบบ<br><br>' +
+                  '📝 กรุณาตรวจสอบการสะกดชื่อ หรือ<br>' +
+                  '📋 <a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank">ไปลงทะเบียนที่ Google Form</a></div>' +
+                  `<div class="debug" style="margin-top: 20px;">
+                    <p><strong>userId:</strong> ${userData.userId}</p>
+                    <p><strong>name:</strong> ${userData.name}</p>
+                    <p><strong>email:</strong> ${userData.email}</p>
+                    <p><strong>phone:</strong> ${userData.phone}</p>
+                    <p><strong>booths:</strong> ${userData.booths.join(', ')}</p>
+                    <p><strong>registeredAt:</strong> ${userData.registeredAt}</p>
+                  </div>`;
+
             } catch (error) {
                 console.error('API Error:', error);
                 setTimeout(() => {
