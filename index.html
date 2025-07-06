@@ -391,7 +391,7 @@
 
             try {
                 // เรียกใช้ Google Sheets API เพื่อค้นหาในชีต "ผู้เข้าร่วมงาน"
-                const response = await fetch(`${API_URL}?action=checkParticipant&name=${encodeURIComponent(userName)}&sheetName=ผู้เข้าร่วมงาน`);
+                const response = await fetch(`${API_URL}?action=getUserByUserId&userId=${encodeURIComponent(userId)}`);
                 const data = await response.json();
                 
                 console.log('API Response for checkParticipant:', data);
@@ -404,6 +404,8 @@
                         booths: [false, false, false, false, false], // จะอัพเดตจาก API
                         registeredAt: new Date().toISOString()
                     };
+
+                
                     
                     console.log('Found participant:', userData);
                     
@@ -784,14 +786,14 @@
                 console.log('API Response for getUserByUserId:', data);
                 
                 if (data.success && data.user) {
-                    console.log('Found user in Google Sheet:', data.user);
-                    return {
-                        userId: data.user.userId || data.user.user_id,
-                        name: data.user.name,
-                        booths: [false, false, false, false, false], // จะอัพเดตจาก getBoothStatus
-                        registeredAt: new Date().toISOString()
+                  const userData = {
+                    userId: data.user.userId,
+                    name: data.user.name,
+                    booths: [false, false, false, false, false],
+                    registeredAt: new Date().toISOString()
                     };
                 }
+                
                 
                 console.log('User not found in Google Sheet, response:', data);
                 return null;
