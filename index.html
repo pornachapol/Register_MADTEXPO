@@ -391,53 +391,44 @@
 
             try {
                 // เรียกใช้ Google Sheets API เพื่อค้นหาในชีต "ผู้เข้าร่วมงาน"
-                const response = await fetch(`${API_URL}?action=getUserByUserId&userId=${encodeURIComponent(userId)}`);
+                const response = await fetch(`${API_URL}?action=checkParticipant&name=${encodeURIComponent(userName)}`);
                 const data = await response.json();
                 
                 console.log('API Response for checkParticipant:', data);
                 
                 if (data.success && data.exists) {
-                    // พบชื่อในฐานข้อมูล Google Sheets
                     const userData = {
-                        userId: data.participant.userId || data.participant.user_id,
+                    userId: data.participant.userId,
                         name: data.participant.name,
-                        booths: [false, false, false, false, false], // จะอัพเดตจาก API
+                        email: data.participant.email,
+                        phone: data.participant.phone,
+                        booths: [false, false, false, false, false],
                         registeredAt: new Date().toISOString()
                     };
 
-                
-                    
-                    console.log('Found participant:', userData);
-                    
-                    // บันทึกข้อมูลใน localStorage ก่อน
                     localStorage.setItem('currentUser', JSON.stringify(userData));
-                    
-                    // ดึงสถานะบูธจาก Google Sheets
                     await getBoothStatus(userData.userId);
-                    
-                    document.getElementById('registerResult').innerHTML = 
+
+                    document.getElementById('registerResult').innerHTML =
                         '<div class="success">✅ พบชื่อของคุณแล้ว! กำลังสร้าง QR Code...</div>';
-                    
+
                     setTimeout(() => {
                         showUserQR(userData);
                     }, 1000);
                 } else {
-                    console.log('Participant not found:', data);
                     document.getElementById('registerResult').innerHTML = 
                         '<div class="error">❌ ไม่พบชื่อของคุณในระบบ<br><br>' +
                         '📝 กรุณาตรวจสอบการสะกดชื่อ หรือ<br>' +
-                        '📋 ถ้ายังไม่ได้ลงทะเบียน กรุณาลงทะเบียนที่<br>' +
-                        '<a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" style="color: #3498db;">https://forms.gle/2y12ALpP52XnCQ8W6</a></div>';
+                        '📋 <a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank">ไปลงทะเบียนที่ Google Form</a></div>';
                 }
             } catch (error) {
                 console.error('API Error:', error);
-                
-                // Fallback ใช้ข้อมูล demo ถ้า API ไม่สามารถเชื่อมต่อได้
                 setTimeout(() => {
                     checkRegistrationFallback(userName);
                 }, 1000);
             }
         }
+
 
         // ฟังก์ชัน fallback สำหรับข้อมูล demo
         function checkRegistrationFallback(userName) {
