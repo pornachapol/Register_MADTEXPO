@@ -753,86 +753,96 @@
             document.getElementById('staffPassword').value = '';
         }
 
-        async function confirmStampBooth() {
-            const password = document.getElementById('confirmPassword').value.trim();
-            
-            if (password !== staffPassword) {
-                document.getElementById('confirmResult').innerHTML = 
-                    '<div class="error">❌ รหัสผ่านไม่ถูกต้อง</div>';
-                return;
-            }
-            
-            // แสดงข้อความกำลังบันทึก
-            document.getElementById('confirmResult').innerHTML = 
-                '<div style="color: #3498db;">⏳ กำลังบันทึกข้อมูล...</div>';
-            
-            try {
-                console.log('Attempting to register stamp:', {
-                    userId: currentStampUserId,
-                    boothId: selectedBoothForStamp
-                });
-                
-                // สร้าง FormData สำหรับส่งข้อมูลแบบ POST
-                const formData = new FormData();
-                formData.append('action', 'registerStamp');
-                formData.append('userId', currentStampUserId);
-                formData.append('boothId', selectedBoothForStamp);
-                formData.append('staffId', 'staff');
-                
-                // เรียกใช้ Google Sheets API
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                console.log('API Response for registerStamp:', data);
-                
-                if (data.success) {
-                    // อัพเดตสถานะในเว็บ
-                    const userData = findUserData(currentStampUserId);
-                    if (userData) {
-                        userData.booths[selectedBoothForStamp - 1] = true;
-                        
-                        // บันทึกข้อมูล (ถ้าเป็น current user)
-                        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-                        if (currentUser.userId === userData.userId) {
-                            localStorage.setItem('currentUser', JSON.stringify(userData));
-                            // อัพเดต UI ทันที
-                            updateBoothStatus(userData);
-                        }
-                        
-                        document.getElementById('confirmResult').innerHTML = 
-                            `<div class="success">
-                                ✅ Stamp สำเร็จ!<br>
-                                ${userData.name} เข้าบูธที่ ${selectedBoothForStamp} แล้ว<br>
-                                <small>เวลา: ${new Date().toLocaleString('th-TH')}</small><br>
-                                <small style="color: #666;">กำลังกลับสู่เมนูเจ้าหน้าที่...</small>
-                            </div>`;
-                        
-                        console.log('Stamp registered successfully');
-                        
-                        setTimeout(() => {
-                            showStaffMenu();
-                        }, 2000);
-                    }
-                } else {
-                    console.error('Failed to register stamp:', data.message || 'Unknown error');
-                    document.getElementById('confirmResult').innerHTML = 
-                        `<div class="error">❌ ${data.message || 'เกิดข้อผิดพลาดในการ stamp'}</div>`;
-                }
-            } catch (error) {
-                console.error('Google Sheets API Error:', error);
-                
-                // Fallback ใช้ localStorage
-                document.getElementById('confirmResult').innerHTML = 
-                    '<div style="color: #f39c12;">⚠️ ไม่สามารถเชื่อมต่อได้<br>ใช้ข้อมูลสำรอง...</div>';
-                
-                setTimeout(() => {
-                    confirmStampBoothFallback();
-                }, 1000);
-            }
+async function confirmStampBooth() {
+    const password = document.getElementById('confirmPassword').value.trim();
+
+    if (password !== staffPassword) {
+        document.getElementById('confirmResult').innerHTML = 
+            '<div class="error">❌ รหัสผ่านไม่ถูกต้อง</div>';
+        return;
+    }
+
+    // แสดงข้อความกำลังบันทึก
+    document.getElementById('confirmResult').innerHTML = 
+        '<div style="color: #3498db;">⏳ กำลังบันทึกข้อมูล...</div>';
+
+    // ปิดปุ่มชั่วคราว
+    const confirmBtn = document.getElementById('confirmBtn');
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    try {
+        console.log('Attempting to register stamp:', {
+            userId: currentStampUserId,
+            boothId: selectedBoothForStamp
+        });
+
+        const formData = new FormData();
+        formData.append('action', 'registerStamp');
+        formData.append('userId', currentStampUserId);
+        formData.append('boothId', selectedBoothForStamp);
+        formData.append('staffId', 'staff');
+
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            body: formData
+        });
+
+        // Debug: กรณีไม่ได้รับ JSON
+        const text = await response.text();
+        let data = {};
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error('Response is not valid JSON:', text);
+            throw new Error("API ตอบกลับไม่ถูกต้อง (ไม่ใช่ JSON)");
         }
+
+        console.log('API Response for registerStamp:', data);
+
+        if (data.success) {
+            const userData = findUserData(currentStampUserId);
+            if (userData) {
+                userData.booths[selectedBoothForStamp - 1] = true;
+
+                const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                if (currentUser.userId === userData.userId) {
+                    localStorage.setItem('currentUser', JSON.stringify(userData));
+                    updateBoothStatus(userData);
+                }
+
+                document.getElementById('confirmResult').innerHTML = 
+                    `<div class="success">
+                        ✅ Stamp สำเร็จ!<br>
+                        ${userData.name} เข้าบูธที่ ${selectedBoothForStamp} แล้ว<br>
+                        <small>เวลา: ${new Date().toLocaleString('th-TH')}</small><br>
+                        <small style="color: #666;">กำลังกลับสู่เมนูเจ้าหน้าที่...</small>
+                    </div>`;
+
+                console.log('Stamp registered successfully');
+
+                setTimeout(() => {
+                    showStaffMenu();
+                }, 2000);
+            }
+        } else {
+            console.error('Failed to register stamp:', data.message || 'Unknown error');
+            document.getElementById('confirmResult').innerHTML = 
+                `<div class="error">❌ ${data.message || 'เกิดข้อผิดพลาดในการ stamp'}</div>`;
+        }
+    } catch (error) {
+        console.error('Google Sheets API Error:', error);
+
+        document.getElementById('confirmResult').innerHTML = 
+            '<div style="color: #f39c12;">⚠️ ไม่สามารถเชื่อมต่อได้<br>ใช้ข้อมูลสำรอง...</div>';
+
+        setTimeout(() => {
+            confirmStampBoothFallback();
+        }, 1000);
+    } finally {
+        // เปิดปุ่มอีกครั้ง
+        if (confirmBtn) confirmBtn.disabled = false;
+    }
+}
 
         // ฟังก์ชัน fallback สำหรับ stamp บูธ
         function confirmStampBoothFallback() {
