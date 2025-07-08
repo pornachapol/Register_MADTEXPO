@@ -1,371 +1,1188 @@
-import { useState } from 'react';
-import { useRouter } from 'next/router';
-
-export default function RegisterPage() {
-  const router = useRouter();
-  const [phone, setPhone] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleRegister = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const response = await fetch('/api/gs-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'checkParticipant', phone })
-      });
-      const result = await response.json();
-      if (result.success && result.exists) {
-        router.push(`/user?userId=${result.participant.userId}`);
-      } else {
-        setError('ไม่พบเบอร์โทรนี้ในระบบ');
-      }
-    } catch (err) {
-      setError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      <h1 className="text-2xl font-bold mb-4">ลงทะเบียนเข้างาน</h1>
-      <input
-        type="tel"
-        placeholder="กรอกเบอร์โทร"
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-        className="border px-4 py-2 rounded mb-2 w-full max-w-xs"
-      />
-      <button
-        onClick={handleRegister}
-        className="bg-blue-600 text-white px-4 py-2 rounded w-full max-w-xs"
-        disabled={loading}
-      >
-        {loading ? 'กำลังตรวจสอบ...' : 'ลงทะเบียน'}
-      </button>
-      {error && <p className="text-red-600 mt-2">{error}</p>}
-    </div>
-  );
-}
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-import QRCode from 'qrcode.react';
-
-export default function UserPage() {
-  const router = useRouter();
-  const { userId } = router.query;
-  const [user, setUser] = useState(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!userId) return;
-    const fetchUser = async () => {
-      try {
-        const res = await fetch('/api/gs-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'getUserByUserId', userId })
-        });
-        const result = await res.json();
-        if (result.success) {
-          setUser(result.user);
-        } else {
-          setError(result.message);
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบลงทะเบียนเข้าร่วมงาน</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-      } catch (err) {
-        setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchUser();
-  }, [userId]);
 
-  const handleGoToStaff = (boothId: string) => {
-    router.push(`/staff/${boothId}?userId=${userId}&userPhone=${user?.phone}`);
-  };
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-  if (loading) return <p className="p-4">กำลังโหลด...</p>;
-  if (error) return <p className="text-red-600 p-4">{error}</p>;
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 420px;
+            width: 95%;
+        }
 
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      <h1 className="text-xl font-bold mb-2">ยินดีต้อนรับ {user.name}</h1>
-      <p className="mb-4">User ID: {userId}</p>
+        .page {
+            display: none;
+        }
 
-      <QRCode value={userId as string} size={180} className="mb-4" />
+        .page.active {
+            display: block;
+        }
 
-      <div className="grid grid-cols-2 gap-4 w-full max-w-md">
-        {[1, 2, 3, 4, 5].map((id) => (
-          <button
-            key={id}
-            onClick={() => handleGoToStaff(String(id))}
-            className="bg-green-600 text-white px-4 py-2 rounded"
-          >
-            เข้าบูธ {id}
-          </button>
-        ))}
-      </div>
+        h1 {
+            color: #333;
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+
+        h2 {
+            color: #555;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        /* Input group styling handled above */
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"], input[type="password"], input[type="tel"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+            width: 100%;
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.3s;
+            margin: 0.5rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .qr-code {
+            background: white;
+            padding: 20px;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            margin: 1rem 0;
+            display: inline-block;
+        }
+
+        .booth-status {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 1rem 0;
+        }
+
+        .booth-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #e74c3c;
+            text-align: left;
+        }
+
+        .booth-item.visited {
+            border-left-color: #27ae60;
+            background: #d5f4e6;
+        }
+
+        .error {
+            color: #e74c3c;
+            margin: 1rem 0;
+            padding: 10px;
+            background: #fdf2f2;
+            border-radius: 8px;
+        }
+
+        .success {
+            color: #27ae60;
+            margin: 1rem 0;
+            padding: 10px;
+            background: #f0f9f4;
+            border-radius: 8px;
+        }
+
+        .user-id {
+            font-family: monospace;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+            margin: 1rem 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .nav-links {
+            margin-top: 1rem;
+        }
+
+        .nav-links a {
+            color: #667eea;
+            text-decoration: none;
+            margin: 0 10px;
+            font-size: 14px;
+        }
+
+        .booth-links {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin: 1rem 0;
+        }
+
+        .booth-link {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #333;
+            border: 2px solid #e1e1e1;
+            transition: all 0.3s;
+        }
+
+        .booth-link:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- หน้าแรก -->
+        <div id="home" class="page active">
+            <h1>🎫 ระบบลงทะเบียนเข้าร่วมงาน</h1>
+            <p style="margin-bottom: 2rem; color: #666;">สแกน QR Code หน้างานเพื่อลงทะเบียน</p>
+
+            <button class="btn" onclick="goToRegister()">เริ่มลงทะเบียน</button>
+
+            <div class="nav-links">
+                <a href="#" onclick="showStaffMenu()">สำหรับเจ้าหน้าที่</a>
+            </div>
+        </div>
+
+        <!-- หน้าลงทะเบียน -->
+        <div id="register" class="page">
+            <h1>📝 ลงทะเบียนเข้าร่วมงาน</h1>
+
+            <div class="input-group">
+                <label for="userPhone">กรุณากรอกเบอร์โทรศัพท์:</label>
+                <input type="tel" id="userPhone" placeholder="เบอร์โทรศัพท์ 10 หลัก (เช่น 0812345678)" maxlength="10" style="width: 100%; font-size: 18px; padding: 14px;">
+            </div>
+
+            <button class="btn" onclick="checkRegistration()">ยืนยันการลงทะเบียน</button>
+            <button class="btn btn-secondary" onclick="goHome()">กลับ</button>
+
+            <div id="registerResult"></div>
+        </div>
+
+        <!-- หน้าแสดง QR Code ส่วนตัว -->
+        <div id="userQR" class="page">
+            <h1>🎟️ QR Code ของคุณ</h1>
+
+            <div id="userInfo"></div>
+            <div id="qrCodeDisplay"></div>
+
+            <h2>สถานะการเข้าบูธ</h2>
+            <div id="boothStatus" class="booth-status"></div>
+
+            <button class="btn" onclick="refreshStatus()">รีเฟรชสถานะ</button>
+            <button class="btn btn-secondary" onclick="goHome()">กลับหน้าแรก</button>
+        </div>
+
+        <!-- หน้าเมนูเจ้าหน้าที่ -->
+        <div id="staffMenu" class="page">
+            <h1>👨‍💼 เมนูเจ้าหน้าที่</h1>
+
+            <div class="booth-links">
+                <a href="#" onclick="goToBoothStaff(1)" class="booth-link">
+                    <strong>บูธที่ 1</strong>
+                </a>
+                <a href="#" onclick="goToBoothStaff(2)" class="booth-link">
+                    <strong>บูธที่ 2</strong>
+                </a>
+                <a href="#" onclick="goToBoothStaff(3)" class="booth-link">
+                    <strong>บูธที่ 3</strong>
+                </a>
+                <a href="#" onclick="goToBoothStaff(4)" class="booth-link">
+                    <strong>บูธที่ 4</strong>
+                </a>
+                <a href="#" onclick="goToBoothStaff(5)" class="booth-link">
+                    <strong>บูธที่ 5</strong>
+                </a>
+            </div>
+
+            <button class="btn btn-secondary" onclick="goHome()">กลับหน้าแรก</button>
+        </div>
+
+        <!-- หน้า Staff สำหรับแต่ละบูธ -->
+        <div id="boothStaff" class="page">
+            <h1 id="boothTitle">🏪 บูธที่ 1</h1>
+
+            <div class="input-group">
+                <label for="scannedUserId">User ID ที่สแกนได้:</label>
+                <input type="text" id="scannedUserId" placeholder="กรอก User ID หรือสแกน QR">
+            </div>
+
+            <div class="input-group">
+                <label for="staffPassword">รหัสผ่านเจ้าหน้าที่:</label>
+                <input type="password" id="staffPassword" placeholder="กรอกรหัสผ่าน">
+            </div>
+
+            <button class="btn" onclick="stampBooth()">Stamp บูธ</button>
+            <button class="btn btn-secondary" onclick="showStaffMenu()">กลับเมนูเจ้าหน้าที่</button>
+
+            <div id="stampResult"></div>
+        </div>
+
+        <!-- หน้าสำหรับสแกน QR Code -->
+        <div id="qrStamp" class="page">
+            <h1 id="qrStampTitle">🎫 Stamp บูธ</h1>
+
+            <div id="userDetail"></div>
+
+            <h2>เลือกบูธที่ต้องการ Stamp:</h2>
+            <div class="booth-links">
+                <button class="booth-link" onclick="selectBoothForStamp(1)">
+                    <strong>บูธที่ 1</strong>
+                </button>
+                <button class="booth-link" onclick="selectBoothForStamp(2)">
+                    <strong>บูธที่ 2</strong>
+                </button>
+                <button class="booth-link" onclick="selectBoothForStamp(3)">
+                    <strong>บูธที่ 3</strong>
+                </button>
+                <button class="booth-link" onclick="selectBoothForStamp(4)">
+                    <strong>บูธที่ 4</strong>
+                </button>
+                <button class="booth-link" onclick="selectBoothForStamp(5)">
+                    <strong>บูธที่ 5</strong>
+                </button>
+            </div>
+
+            <div style="margin-top: 2rem; display: flex; gap: 10px; justify-content: center;">
+                <button class="btn btn-secondary" onclick="goHome()">กลับหน้าแรก</button>
+                <button class="btn btn-secondary" onclick="showStaffMenu()">เมนูเจ้าหน้าที่</button>
+            </div>
+        </div>
+
+        <!-- หน้า Confirm Stamp -->
+        <div id="confirmStamp" class="page">
+            <h1 id="confirmTitle">🎯 Confirm Stamp</h1>
+
+            <div id="confirmDetail"></div>
+
+            <div class="input-group">
+                <label for="confirmPassword">รหัสผ่านเจ้าหน้าที่:</label>
+                <input type="password" id="confirmPassword" placeholder="กรอกรหัสผ่าน">
+            </div>
+
+            <button class="btn" onclick="confirmStampBooth()">✅ ยืนยัน Stamp</button>
+            <button class="btn btn-secondary" onclick="goBackToQRStamp()">กลับ</button>
+
+            <div id="confirmResult"></div>
+        </div>
     </div>
-  );
-}
-import { useRouter } from 'next/router';
-import { useState } from 'react';
 
-export default function StaffConfirmPage() {
-  const router = useRouter();
-  const { boothId, userId, userPhone } = router.query;
 
-  const [password, setPassword] = useState('');
-  const [result, setResult] = useState('');
-  const [loading, setLoading] = useState(false);
+    <script>
+        // Google Apps Script API URL
+        const API_URL = 'https://script.google.com/macros/s/AKfycbw9WYOjpoM228W42d-TuY4cCLkyAn8VO9zOkNjHgGhJX2OkpfhILyX9U9uLCr9PdnjjBQ/exec';
 
-  const staffPassword = '1234'; // 🔒 แนะนำให้ย้ายออกเป็น env หาก deploy จริง
+        // ข้อมูล Demo สำหรับ fallback (เบอร์โทรที่ตัด 0 แล้ว)
+        const demoPhones = [
+            '812345678', // 0812345678
+            '923456789', // 0923456789
+            '634567890', // 0634567890
+            '745678901'  // 0745678901
+        ];
 
-  const handleConfirm = async () => {
+        const demoUsers = [
+            { phone: '812345678', name: 'สุธิดา มีใจ' },
+            { phone: '923456789', name: 'อนันต์ รักการเรียนรู้' },
+            { phone: '634567890', name: 'นิรมล สุขใจ' },
+            { phone: '745678901', name: 'พิมพ์ใส ใสใจ' }
+        ];
+
+        const boothNames = [
+            'บูธ 1',
+            'บูธ 2', 
+            'บูธ 3',
+            'บูธ 4',
+            'บูธ 5'
+        ];
+
+        const staffPassword = 'MADT4';
+        let currentBoothId = 1;
+        let currentStampUserId = null;
+        let selectedBoothForStamp = null;
+
+        // ฟังก์ชันจัดการหน้า
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            document.getElementById(pageId).classList.add('active');
+        }
+
+        function goHome() {
+            showPage('home');
+        }
+
+        function goToRegister() {
+            showPage('register');
+            document.getElementById('userPhone').value = '';
+            document.getElementById('registerResult').innerHTML = '';
+        }
+
+        function showStaffMenu() {
+            showPage('staffMenu');
+        }
+
+        function goToBoothStaff(boothId) {
+            currentBoothId = boothId;
+            document.getElementById('boothTitle').textContent = `🏪 บูธที่ ${boothId} - ${boothNames[boothId-1]}`;
+            document.getElementById('scannedUserId').value = '';
+            document.getElementById('staffPassword').value = '';
+            document.getElementById('stampResult').innerHTML = '';
+            showPage('boothStaff');
+        }
+
+        // ฟังก์ชันตรวจสอบและแปลงเบอร์โทร
+        function normalizePhone(phone) {
+            // ลบช่องว่างและอักขระพิเศษ
+            phone = phone.replace(/\D/g, '');
+
+            // ตรวจสอบว่าเป็นเบอร์โทร 10 หลักหรือไม่
+            if (phone.length !== 10) {
+                return null;
+            }
+
+            // ตรวจสอบว่าขึ้นต้นด้วย 0 หรือไม่
+            if (phone.charAt(0) !== '0') {
+                return null;
+            }
+
+            // ตัดเลข 0 ด้านหน้าออก
+            return phone.substring(1);
+        }
+
+        // ฟังก์ชันลงทะเบียน
+        async function checkRegistration() {
+            const userPhone = document.getElementById('userPhone').value.trim();
+
+            if (!userPhone) {
+                document.getElementById('registerResult').innerHTML = 
+                    '<div class="error">กรุณากรอกเบอร์โทรศัพท์</div>';
+                return;
+            }
+
+            // ตรวจสอบและแปลงเบอร์โทร
+            const normalizedPhone = normalizePhone(userPhone);
+            if (!normalizedPhone) {
+                document.getElementById('registerResult').innerHTML = 
+                    '<div class="error">กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (10 หลัก เช่น 0646877333)</div>';
+                return;
+            }
+
+            console.log('Original phone:', userPhone, 'Normalized:', normalizedPhone);
+
+            // แสดงข้อความกำลังตรวจสอบ
+            document.getElementById('registerResult').innerHTML = 
+                '<div style="color: #3498db;">🔍 กำลังตรวจสอบข้อมูล...</div>';
+
+            try {
+                // เรียกใช้ Google Sheets API เพื่อค้นหาในชีต "ผู้เข้าร่วมงาน"
+                const formData = new FormData();
+                formData.append('action', 'checkParticipant');
+                formData.append('phone', normalizedPhone);  // ใช้เบอร์โทรที่ตัด 0 แล้ว
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                console.log('API Response for checkParticipant:', data);
+
+                if (data.success && data.exists) {
+                    // พบชื่อในฐานข้อมูล Google Sheets
+                    const userData = {
+                        userId: data.participant.userId || data.participant.user_id,
+                        name: data.participant.name,
+                        booths: [false, false, false, false, false], // จะอัพเดตจาก API
+                        registeredAt: new Date().toISOString()
+                    };
+
+                    console.log('Found participant:', userData);
+
+                    // บันทึกข้อมูลใน localStorage ก่อน
+                    localStorage.setItem('currentUser', JSON.stringify(userData));
+
+                    document.getElementById('registerResult').innerHTML = 
+                        '<div class="success">✅ พบชื่อของคุณแล้ว! กำลังโหลดสถานะบูธ...</div>';
+
+                    // ดึงสถานะบูธจาก Google Sheets ก่อนแสดงหน้า QR
+                    const boothSuccess = await getBoothStatus(userData.userId);
+
+                    // ดึงข้อมูลที่อัพเดตแล้วจาก localStorage
+                    const updatedUserData = JSON.parse(localStorage.getItem('currentUser') || '{}');
+
+                    document.getElementById('registerResult').innerHTML = 
+                        '<div class="success">✅ กำลังสร้าง QR Code...</div>';
+
+                    setTimeout(() => {
+                        showUserQR(updatedUserData);
+                    }, 500);
+                } else {
+                    console.log('Participant not found:', data);
+                    document.getElementById('registerResult').innerHTML = 
+                        '<div class="error">' +
+                        '<div style="font-size: 18px; margin-bottom: 15px;">❌ ไม่พบเบอร์โทรของคุณในระบบ</div>' +
+                        '<div style="margin-bottom: 10px;">📝 กรุณาตรวจสอบเบอร์โทรศัพท์</div>' +
+                        '<div style="margin-bottom: 15px;">หรือ</div>' +
+                        '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 2px solid #ffc107; margin: 10px 0;">' +
+                        '<div style="color: #856404; font-weight: bold; margin-bottom: 10px;">📋 ยังไม่ได้ลงทะเบียน?</div>' +
+                        '<div style="margin-bottom: 10px;">กรุณาลงทะเบียนก่อนเข้าร่วมงาน</div>' +
+                        '<a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" ' +
+                        'style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; ' +
+                        'text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 10px;">' +
+                        '🔗 ลงทะเบียนที่นี่</a>' +
+                        '</div>' +
+                        '</div>';
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+
+                // Fallback ใช้ข้อมูล demo ถ้า API ไม่สามารถเชื่อมต่อได้
+                setTimeout(() => {
+                    checkRegistrationFallback(userPhone, normalizedPhone);
+                }, 1000);
+            }
+        }
+
+        // ฟังก์ชัน fallback สำหรับข้อมูล demo
+        function checkRegistrationFallback(userPhone, normalizedPhone) {
+            const demoUser = demoUsers.find(user => user.phone === normalizedPhone);
+
+            if (demoUser) {
+                const userId = 'DEMO' + normalizedPhone;
+
+                const userData = {
+                    userId: userId,
+                    name: demoUser.name,
+                    phone: normalizedPhone,
+                    booths: [false, false, false, false, false],
+                    registeredAt: new Date().toISOString()
+                };
+
+                localStorage.setItem('currentUser', JSON.stringify(userData));
+
+                document.getElementById('registerResult').innerHTML = 
+                    '<div class="success">✅ พบเบอร์โทรของคุณในข้อมูล Demo! กำลังสร้าง QR Code...</div>';
+
+                setTimeout(() => {
+                    showUserQR(userData);
+                }, 1000);
+            } else {
+                document.getElementById('registerResult').innerHTML = 
+                    '<div class="error">' +
+                    '<div style="font-size: 18px; margin-bottom: 15px;">❌ ไม่พบเบอร์โทรของคุณในระบบ</div>' +
+                    '<div style="margin-bottom: 10px;">📝 กรุณาตรวจสอบเบอร์โทรศัพท์</div>' +
+                    '<div style="margin-bottom: 15px;">หรือ</div>' +
+                    '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 2px solid #ffc107; margin: 10px 0;">' +
+                    '<div style="color: #856404; font-weight: bold; margin-bottom: 10px;">📋 ยังไม่ได้ลงทะเบียน?</div>' +
+                    '<div style="margin-bottom: 10px;">กรุณาลงทะเบียนก่อนเข้าร่วมงาน</div>' +
+                    '<a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" ' +
+                    'style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; ' +
+                    'text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 10px;">' +
+                    '🔗 ลงทะเบียนที่นี่</a>' +
+                    '</div>' +
+                    '</div>';
+            }
+        }
+
+        // ฟังก์ชันแสดง QR Code
+        function showUserQR(userData) {
+            showPage('userQR');
+
+            document.getElementById('userInfo').innerHTML = 
+                `<h2>สวัสดี ${userData.name}</h2>
+                 <div class="user-id">User ID: ${userData.userId}</div>`;
+
+            // สร้าง QR Code ที่ลิงก์ไปหน้า stamp
+            const currentURL = window.location.origin + window.location.pathname;
+            const stampURL = `${currentURL}?action=stamp&userId=${userData.userId}`;
+
+            // เข้ารหัส URL สำหรับ QR Code
+            const encodedURL = encodeURIComponent(stampURL);
+            const qrCodeURL = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedURL}`;
+
+            // แสดง QR Code
+            document.getElementById('qrCodeDisplay').innerHTML = 
+                `<div class="qr-code">
+                    <img src="${qrCodeURL}" alt="QR Code" style="width: 200px; height: 200px; border: 2px solid #e1e1e1; border-radius: 10px;" />
+                    <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                        <strong>QR Code สำหรับ Stamp บูธ</strong><br>
+                        แสดงให้เจ้าหน้าที่สแกนเพื่อเข้าบูธ<br>
+                        <small style="color: #999;">URL: ${stampURL}</small>
+                    </p>
+                </div>`;
+
+            updateBoothStatus(userData);
+        }
+
+        // ฟังก์ชันอัพเดตสถานะบูธ
+        function updateBoothStatus(userData) {
+            let statusHTML = '';
+            let completedBooths = 0;
+
+            for (let i = 0; i < 5; i++) {
+                const visited = userData.booths[i];
+                if (visited) completedBooths++;
+
+                statusHTML += `
+                    <div class="booth-item ${visited ? 'visited' : ''}">
+                        <strong>บูธที่ ${i + 1}</strong><br>
+                        <span style="color: ${visited ? '#27ae60' : '#e74c3c'}">
+                            ${visited ? '✅ เข้าแล้ว' : '⏳ ยังไม่เข้า'}
+                        </span>
+                    </div>
+                `;
+            }
+
+            // เพิ่มข้อความเมื่อสแตมป์ครบทุกบูธ
+            if (completedBooths === 5) {
+                statusHTML += `
+                    <div style="grid-column: span 2; margin-top: 15px; background: #d4edda; border-radius: 10px; padding: 15px; text-align: center;">
+                        <strong style="color: #28a745; font-size: 18px;">🎉 สแตมป์ครบทุกบูธแล้ว!</strong>
+                        <p style="margin-top: 8px; color: #28a745;">คุณมีสิทธิ์ลุ้นรางวัล Lucky Draw</p>
+                    </div>
+                `;
+            }
+
+            document.getElementById('boothStatus').innerHTML = statusHTML;
+        }
+
+        // ฟังก์ชันดึงสถานะบูธจาก Google Sheets
+        async function getBoothStatus(userId) {
+            try {
+                console.log('Getting booth status for user:', userId);
+                // ดึงข้อมูลจาก Sheet "สถานะบูธ"
+                const formData = new FormData();
+                formData.append('action', 'getBoothStatus');
+                formData.append('userId', userId);
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                console.log('API Response for getBoothStatus:', data);
+
+                if (data.success) {
+                    // ค้นหาข้อมูลผู้ใช้ปัจจุบัน
+                    let userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
+
+                    if (userData.userId === userId) {
+                        // รีเซ็ตสถานะบูธ
+                        userData.booths = [false, false, false, false, false];
+
+                        // รับข้อมูลบูธจาก API
+                        if (data.booths && data.booths.length > 0) {
+                            data.booths.forEach(booth => {
+                                const boothId = parseInt(booth.boothId || booth.booth_id);
+                                if (boothId >= 1 && boothId <= 5) {
+                                    userData.booths[boothId - 1] = true;
+                                    console.log(`Updated booth ${boothId} status to true`);
+                                }
+                            });
+                        }
+
+                        // อัพเดต localStorage
+                        localStorage.setItem('currentUser', JSON.stringify(userData));
+
+                        // อัพเดตหน้า UI
+                        updateBoothStatus(userData);
+
+                        console.log('Updated user data:', userData);
+                    }
+
+                    return true;
+                } else {
+                    console.log('Failed to get booth status:', data.message || 'Unknown error');
+                }
+                return false;
+            } catch (error) {
+                console.error('Error getting booth status:', error);
+                return false;
+            }
+        }
+
+        // ฟังก์ชันรีเฟรชสถานะ
+        async function refreshStatus() {
+            const userData = JSON.parse(localStorage.getItem('currentUser'));
+            if (userData) {
+                document.getElementById('boothStatus').innerHTML = 
+                    '<div style="color: #3498db; text-align: center;">🔄 กำลังอัพเดตสถานะ...</div>';
+
+                // เรียกใช้ API เพื่อดึงข้อมูลล่าสุด
+                const success = await getBoothStatus(userData.userId);
+                if (!success) {
+                    // ถ้าไม่สำเร็จ ใช้ข้อมูลใน localStorage
+                    updateBoothStatus(userData);
+                }
+            }
+        }
+
+        // ฟังก์ชัน Stamp บูธ
+        async function stampBooth() {
+            const scannedUserId = document.getElementById('scannedUserId').value.trim();
+            const password = document.getElementById('staffPassword').value.trim();
+
+            if (!scannedUserId || !password) {
+                document.getElementById('stampResult').innerHTML = 
+                    '<div class="error">กรุณากรอกข้อมูลให้ครบถ้วน</div>';
+                return;
+            }
+
+            if (password !== staffPassword) {
+                document.getElementById('stampResult').innerHTML = 
+                    '<div class="error">❌ รหัสผ่านไม่ถูกต้อง</div>';
+                return;
+            }
+
+            // แสดงข้อความกำลังค้นหา
+            document.getElementById('stampResult').innerHTML = 
+                '<div style="color: #3498db;">🔍 กำลังค้นหาข้อมูลผู้ใช้...</div>';
+
+            // ค้นหาข้อมูลผู้ใช้
+            let userData = findUserData(scannedUserId);
+
+            // ถ้าไม่เจอใน localStorage ให้ค้นหาจาก Google Sheet
+            if (!userData) {
+                userData = await findUserDataFromAPI(scannedUserId);
+
+                // ถ้าเจอจาก API ให้ดึงสถานะบูธด้วย
+                if (userData) {
+                    await getBoothStatus(userData.userId);
+                    // อัพเดต userData หลังจากดึงสถานะบูธ
+                    const updatedUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                    if (updatedUser.userId === userData.userId) {
+                        userData = updatedUser;
+                    }
+                }
+            }
+
+            if (!userData) {
+                document.getElementById('stampResult').innerHTML = 
+                    '<div class="error">' +
+                    '<div style="font-size: 16px; margin-bottom: 10px;">❌ ไม่พบ User ID นี้ในระบบ</div>' +
+                    '<div style="margin-bottom: 10px;">กรุณาตรวจสอบชื่อหรือ User ID</div>' +
+                    '<div style="background: #fff3cd; padding: 10px; border-radius: 8px; border: 2px solid #ffc107; margin: 10px 0;">' +
+                    '<div style="color: #856404; font-weight: bold; margin-bottom: 8px;">📋 หากยังไม่ได้ลงทะเบียน</div>' +
+                    '<a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" ' +
+                    'style="display: inline-block; background: #007bff; color: white; padding: 8px 15px; ' +
+                    'text-decoration: none; border-radius: 5px; font-weight: bold;">' +
+                    '🔗 ลงทะเบียนที่นี่</a>' +
+                    '</div>' +
+                    '</div>';
+                return;
+            }
+
+            // ตรวจสอบว่า stamp แล้วหรือยัง
+            if (userData.booths[currentBoothId - 1]) {
+                document.getElementById('stampResult').innerHTML = 
+                    '<div class="error">⚠️ User คนนี้เข้าบูธนี้แล้ว</div>';
+                return;
+            }
+
+            // Stamp บูธ
+            userData.booths[currentBoothId - 1] = true;
+            localStorage.setItem('currentUser', JSON.stringify(userData));
+
+            document.getElementById('stampResult').innerHTML = 
+                `<div class="success">✅ Stamp สำเร็จ!<br>
+                 ${userData.name} เข้าบูธที่ ${currentBoothId} แล้ว</div>`;
+
+            // ล้างข้อมูลฟอร์ม
+            document.getElementById('scannedUserId').value = '';
+            document.getElementById('staffPassword').value = '';
+        }
+
+        async function confirmStampBooth() {
+            const password = document.getElementById('confirmPassword').value.trim();
+            
+            if (password !== staffPassword) {
+                document.getElementById('confirmResult').innerHTML = 
+                    '<div class="error">❌ รหัสผ่านไม่ถูกต้อง</div>';
+                return;
+            }
+            
+            // แสดงข้อความกำลังบันทึก
+            document.getElementById('confirmResult').innerHTML = 
+                '<div style="color: #3498db;">⏳ กำลังบันทึกข้อมูล...</div>';
+            
+            try {
+                console.log('Attempting to register stamp:', {
+                    userId: currentStampUserId,
+                    boothId: selectedBoothForStamp
+                });
+                
+                // สร้าง FormData สำหรับส่งข้อมูลแบบ POST
+                const formData = new FormData();
+                formData.append('action', 'registerStamp');
+                formData.append('userId', currentStampUserId);
+                formData.append('boothId', selectedBoothForStamp);
+                formData.append('staffId', 'staff');
+                
+                // เรียกใช้ Google Sheets API
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                console.log('API Response for registerStamp:', data);
+                
+                if (data.success) {
+                    // อัพเดตสถานะในเว็บ
+                    const userData = findUserData(currentStampUserId);
+                    if (userData) {
+                        userData.booths[selectedBoothForStamp - 1] = true;
+                        
+                        // บันทึกข้อมูล (ถ้าเป็น current user)
+                        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                        if (currentUser.userId === userData.userId) {
+                            localStorage.setItem('currentUser', JSON.stringify(userData));
+                            // อัพเดต UI ทันที
+                            updateBoothStatus(userData);
+                        }
+                        
+                        document.getElementById('confirmResult').innerHTML = 
+                            `<div class="success">
+                                ✅ Stamp สำเร็จ!<br>
+                                ${userData.name} เข้าบูธที่ ${selectedBoothForStamp} แล้ว<br>
+                                <small>เวลา: ${new Date().toLocaleString('th-TH')}</small><br>
+                                <small style="color: #666;">กำลังกลับสู่เมนูเจ้าหน้าที่...</small>
+                            </div>`;
+                        
+                        console.log('Stamp registered successfully');
+                        
+                        setTimeout(() => {
+                            showStaffMenu();
+                        }, 2000);
+                    }
+                } else {
+                    console.error('Failed to register stamp:', data.message || 'Unknown error');
+                    document.getElementById('confirmResult').innerHTML = 
+                        `<div class="error">❌ ${data.message || 'เกิดข้อผิดพลาดในการ stamp'}</div>`;
+async function confirmStampBooth() {
+    const password = document.getElementById('confirmPassword').value.trim();
+
     if (password !== staffPassword) {
-      setResult('❌ รหัสผ่านไม่ถูกต้อง');
-      return;
+        document.getElementById('confirmResult').innerHTML = 
+            '<div class="error">❌ รหัสผ่านไม่ถูกต้อง</div>';
+        return;
     }
 
-    setLoading(true);
-    setResult('⏳ กำลังบันทึก...');
+    // แสดงข้อความกำลังบันทึก
+    document.getElementById('confirmResult').innerHTML = 
+        '<div style="color: #3498db;">⏳ กำลังบันทึกข้อมูล...</div>';
+
+    // ปิดปุ่มชั่วคราว
+    const confirmBtn = document.getElementById('confirmBtn');
+    if (confirmBtn) confirmBtn.disabled = true;
 
     try {
-      const response = await fetch('/api/gs-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'registerStamp',
-          userId,
-          boothId,
-          userPhone,
-          staffId: 'staff'
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setResult(`✅ ${data.message}`);
-      } else {
-        setResult(`❌ ${data.message}`);
-      }
-    } catch (err) {
-      setResult('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        console.log('Attempting to register stamp:', {
+            userId: currentStampUserId,
+            boothId: selectedBoothForStamp
+        });
+
+        const formData = new FormData();
+        formData.append('action', 'registerStamp');
+        formData.append('userId', currentStampUserId);
+        formData.append('boothId', selectedBoothForStamp);
+        formData.append('staffId', 'staff');
+
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            body: formData
+        });
+
+        // Debug: กรณีไม่ได้รับ JSON
+        const text = await response.text();
+        let data = {};
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error('Response is not valid JSON:', text);
+            throw new Error("API ตอบกลับไม่ถูกต้อง (ไม่ใช่ JSON)");
+        }
+
+        console.log('API Response for registerStamp:', data);
+
+        if (data.success) {
+            const userData = findUserData(currentStampUserId);
+            if (userData) {
+                userData.booths[selectedBoothForStamp - 1] = true;
+
+                const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                if (currentUser.userId === userData.userId) {
+                    localStorage.setItem('currentUser', JSON.stringify(userData));
+                    updateBoothStatus(userData);
+                }
+            } catch (error) {
+                console.error('Google Sheets API Error:', error);
+                
+                // Fallback ใช้ localStorage
+
+                document.getElementById('confirmResult').innerHTML = 
+                    '<div style="color: #f39c12;">⚠️ ไม่สามารถเชื่อมต่อได้<br>ใช้ข้อมูลสำรอง...</div>';
+                
+                    `<div class="success">
+                        ✅ Stamp สำเร็จ!<br>
+                        ${userData.name} เข้าบูธที่ ${selectedBoothForStamp} แล้ว<br>
+                        <small>เวลา: ${new Date().toLocaleString('th-TH')}</small><br>
+                        <small style="color: #666;">กำลังกลับสู่เมนูเจ้าหน้าที่...</small>
+                    </div>`;
+
+                console.log('Stamp registered successfully');
+
+                setTimeout(() => {
+                    confirmStampBoothFallback();
+                }, 1000);
+                    showStaffMenu();
+                }, 2000);
+            }
+        } else {
+            console.error('Failed to register stamp:', data.message || 'Unknown error');
+            document.getElementById('confirmResult').innerHTML = 
+                `<div class="error">❌ ${data.message || 'เกิดข้อผิดพลาดในการ stamp'}</div>`;
+        }
+    } catch (error) {
+        console.error('Google Sheets API Error:', error);
+
+        document.getElementById('confirmResult').innerHTML = 
+            '<div style="color: #f39c12;">⚠️ ไม่สามารถเชื่อมต่อได้<br>ใช้ข้อมูลสำรอง...</div>';
+
+        setTimeout(() => {
+            confirmStampBoothFallback();
+        }, 1000);
+    } finally {
+        // เปิดปุ่มอีกครั้ง
+        if (confirmBtn) confirmBtn.disabled = false;
     }
-    setLoading(false);
-  };
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      <h1 className="text-xl font-bold mb-4">ยืนยันการ Stamp บูธ {boothId}</h1>
-      <input
-        type="password"
-        placeholder="รหัส Staff"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        className="border px-4 py-2 rounded mb-2 w-full max-w-xs"
-      />
-      <button
-        onClick={handleConfirm}
-        className="bg-blue-600 text-white px-4 py-2 rounded w-full max-w-xs"
-        disabled={loading}
-      >
-        ยืนยันการ Stamp
-      </button>
-      {result && <p className="mt-4 text-center whitespace-pre-line">{result}</p>}
-    </div>
-  );
-}
-// ✅ Next.js API Route: Proxy ไปยัง Google Apps Script
-
-export default async function handler(req, res) {
-  const scriptUrl = process.env.GS_WEBAPP_URL;
-
-  if (!scriptUrl) {
-    return res.status(500).json({ success: false, message: 'GS_WEBAPP_URL is not set in environment variables.' });
-  }
-
-  try {
-    const method = req.method;
-    const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-
-    const body = new URLSearchParams();
-    const input = method === 'GET' ? req.query : req.body;
-
-    for (const key in input) {
-      body.append(key, input[key]);
-    }
-
-    const response = await fetch(scriptUrl, {
-      method,
-      headers,
-      body: method === 'POST' ? body : undefined,
-    });
-
-    const data = await response.json();
-    res.status(200).json(data);
-  } catch (error) {
-    console.error('Proxy error:', error);
-    res.status(500).json({ success: false, message: 'Proxy request failed.' });
-  }
 }
 
-// .env.local file (อย่าลืมเพิ่ม)
-// GS_WEBAPP_URL=https://script.google.com/macros/s/AKfycb.../exec
+        // ฟังก์ชัน fallback สำหรับ stamp บูธ
+        function confirmStampBoothFallback() {
+            const userData = findUserData(currentStampUserId);
 
-import { useEffect, useState } from 'react';
+            if (userData.booths[selectedBoothForStamp - 1]) {
+                document.getElementById('confirmResult').innerHTML = 
+                    '<div class="error">⚠️ ผู้ใช้คนนี้เข้าบูธนี้แล้ว</div>';
+                return;
+            }
 
-export default function AdminDashboard() {
-  const [participants, setParticipants] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+            // อัพเดตสถานะ
+            userData.booths[selectedBoothForStamp - 1] = true;
 
-  useEffect(() => {
-    const fetchParticipants = async () => {
-      try {
-        const res = await fetch('/api/gs-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'getParticipants' })
-        });
-        const result = await res.json();
-        if (result.success) {
-          setParticipants(result.participants);
-        } else {
-          setError(result.message);
+            // บันทึกข้อมูล (ถ้าเป็น current user)
+            const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+            if (currentUser.userId === userData.userId) {
+                localStorage.setItem('currentUser', JSON.stringify(userData));
+            }
+
+            document.getElementById('confirmResult').innerHTML = 
+                `<div class="success">
+                    ✅ Stamp สำเร็จ! (บันทึกในเครื่อง)<br>
+                    ${userData.name} เข้าบูธที่ ${selectedBoothForStamp} แล้ว<br>
+                    <small>เวลา: ${new Date().toLocaleString('th-TH')}</small><br>
+                    <small style="color: #666;">กำลังกลับสู่เมนูเจ้าหน้าที่...</small>
+                </div>`;
+
+            setTimeout(() => {
+                showStaffMenu();
+            }, 2000);
         }
-      } catch (err) {
-        setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchParticipants();
-  }, []);
 
-  return (
-    <div className="min-h-screen p-4">
-      <h1 className="text-2xl font-bold mb-4">🧾 รายชื่อผู้เข้าร่วมงาน</h1>
-      {loading && <p>⏳ กำลังโหลดข้อมูล...</p>}
-      {error && <p className="text-red-500">{error}</p>}
-      {!loading && !error && (
-        <div className="overflow-x-auto">
-          <table className="table-auto border-collapse w-full text-sm">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="border px-2 py-1">#</th>
-                <th className="border px-2 py-1">ชื่อ</th>
-                <th className="border px-2 py-1">อีเมล</th>
-                <th className="border px-2 py-1">เบอร์โทร</th>
-                <th className="border px-2 py-1">User ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {participants.map((p, idx) => (
-                <tr key={p.userId} className="hover:bg-gray-100">
-                  <td className="border px-2 py-1 text-center">{idx + 1}</td>
-                  <td className="border px-2 py-1">{p.name}</td>
-                  <td className="border px-2 py-1">{p.email}</td>
-                  <td className="border px-2 py-1">{p.phone}</td>
-                  <td className="border px-2 py-1">{p.userId}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-import { useEffect, useState } from 'react';
-
-export default function AdminDashboard() {
-  const [participants, setParticipants] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [boothData, setBoothData] = useState({});
-
-  useEffect(() => {
-    const fetchParticipants = async () => {
-      try {
-        const res = await fetch('/api/gs-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'getParticipants' })
-        });
-        const result = await res.json();
-        if (result.success) {
-          setParticipants(result.participants);
-          fetchBoothStatuses(result.participants);
-        } else {
-          setError(result.message);
+        function goBackToQRStamp() {
+            showQRStampPage(currentStampUserId);
         }
-      } catch (err) {
-        setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchParticipants();
-  }, []);
 
-  const fetchBoothStatuses = async (users) => {
-    const statuses = {};
-    await Promise.all(
-      users.map(async (user) => {
-        const res = await fetch('/api/gs-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'getBoothStatus', userId: user.userId })
-        });
-        const result = await res.json();
-        if (result.success) {
-          statuses[user.userId] = result.booths.length;
-        } else {
-          statuses[user.userId] = 0;
+        // ฟังก์ชันค้นหาข้อมูลผู้ใช้จาก Google Sheet
+        async function findUserDataFromAPI(userId) {
+            try {
+                console.log('Searching user in Google Sheet:', userId);
+
+                // ลองค้นหาด้วย userId ก่อน
+                let formData = new FormData();
+                formData.append('action', 'getUserByUserId');
+                formData.append('userId', userId);
+
+                let response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                let data = await response.json();
+
+                console.log('API Response for getUserByUserId:', data);
+
+                if (data.success && data.user) {
+                    console.log('Found user by userId in Google Sheet:', data.user);
+                    return {
+                        userId: data.user.userId || data.user.user_id,
+                        name: data.user.name,
+                        phone: data.user.phone,
+                        booths: [false, false, false, false, false], // จะอัพเดตจาก getBoothStatus
+                        registeredAt: new Date().toISOString()
+                    };
+                }
+
+                // ถ้าไม่เจอ ลองค้นหาด้วยเบอร์โทร (ในกรณีที่ userId เป็นเบอร์โทร)
+                console.log('Trying to search by phone number:', userId);
+                formData = new FormData();
+                formData.append('action', 'getUserByPhone');
+                formData.append('phone', userId);
+
+                response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                data = await response.json();
+
+                console.log('API Response for getUserByPhone:', data);
+
+                if (data.success && data.user) {
+                    console.log('Found user by phone in Google Sheet:', data.user);
+                    return {
+                        userId: data.user.userId || data.user.user_id,
+                        name: data.user.name,
+                        phone: data.user.phone,
+                        booths: [false, false, false, false, false], // จะอัพเดตจาก getBoothStatus
+                        registeredAt: new Date().toISOString()
+                    };
+                }
+
+                console.log('User not found in Google Sheet, response:', data);
+                return null;
+            } catch (error) {
+                console.error('Error searching user in Google Sheet:', error);
+                return null;
+            }
         }
-      })
-    );
-    setBoothData(statuses);
-  };
 
-  return (
-    <div className="min-h-screen p-4">
-      <h1 className="text-2xl font-bold mb-4">🧾 รายชื่อผู้เข้าร่วมงาน</h1>
-      {loading && <p>⏳ กำลังโหลดข้อมูล...</p>}
-      {error && <p className="text-red-500">{error}</p>}
-      {!loading && !error && (
-        <div className="overflow-x-auto">
-          <table className="table-auto border-collapse w-full text-sm">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="border px-2 py-1">#</th>
-                <th className="border px-2 py-1">ชื่อ</th>
-                <th className="border px-2 py-1">อีเมล</th>
-                <th className="border px-2 py-1">เบอร์โทร</th>
-                <th className="border px-2 py-1">User ID</th>
-                <th className="border px-2 py-1">จำนวน Booth ที่เข้า</th>
-              </tr>
-            </thead>
-            <tbody>
-              {participants.map((p, idx) => (
-                <tr key={p.userId} className="hover:bg-gray-100">
-                  <td className="border px-2 py-1 text-center">{idx + 1}</td>
-                  <td className="border px-2 py-1">{p.name}</td>
-                  <td className="border px-2 py-1">{p.email}</td>
-                  <td className="border px-2 py-1">{p.phone}</td>
-                  <td className="border px-2 py-1">{p.userId}</td>
-                  <td className="border px-2 py-1 text-center">{boothData[p.userId] || 0}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
+        function findUserData(userId) {
+            console.log('Looking for user:', userId); // debug
 
+            // ค้นหาข้อมูลจาก localStorage หรือข้อมูล demo
+            const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+            console.log('Current user in localStorage:', currentUser); // debug
+
+            if (currentUser.userId === userId) {
+                console.log('Found user in localStorage'); // debug
+                return currentUser;
+            }
+
+            // ถ้าไม่เจอใน localStorage ให้สร้างข้อมูล demo
+            if (userId === 'TEST123456') {
+                console.log('Creating demo user for TEST123456'); // debug
+                return {
+                    userId: userId,
+                    name: 'ผู้ทดสอบระบบ',
+                    phone: '123456789',
+                    booths: [false, false, false, false, false],
+                    registeredAt: new Date().toISOString()
+                };
+            }
+
+            // ค้นหาจาก demo users
+            for (let i = 0; i < demoUsers.length; i++) {
+                const demoUser = demoUsers[i];
+                if (userId === ('DEMO' + demoUser.phone) || userId === demoUser.phone) {
+                    console.log('Found demo user:', demoUser); // debug
+                    return {
+                        userId: 'DEMO' + demoUser.phone,
+                        name: demoUser.name,
+                        phone: demoUser.phone,
+                        booths: [false, false, false, false, false],
+                        registeredAt: new Date().toISOString()
+                    };
+                }
+            }
+
+            console.log('User not found in local data'); // debug
+            return null;
+        }
+
+        // ฟังก์ชันสำหรับหน้า QR Stamp
+        async function showQRStampPage(userId) {
+            console.log('showQRStampPage called with userId:', userId); // debug
+            currentStampUserId = userId;
+
+            // แสดงข้อความกำลังค้นหา
+            document.getElementById('userDetail').innerHTML = 
+                '<div style="color: #3498db; text-align: center;">🔍 กำลังค้นหาข้อมูลผู้ใช้...</div>';
+            showPage('qrStamp');
+
+            // ค้นหาข้อมูลผู้ใช้จาก localStorage ก่อน
+            let userData = findUserData(userId);
+            console.log('Found userData in local:', userData); // debug
+
+            // ถ้าไม่เจอใน localStorage ให้ค้นหาจาก Google Sheet
+            if (!userData) {
+                console.log('User not found locally, searching in Google Sheet...'); // debug
+                userData = await findUserDataFromAPI(userId);
+                console.log('Found userData from API:', userData); // debug
+
+                // ถ้าเจอจาก API ให้ดึงสถานะบูธด้วย
+                if (userData) {
+                    await getBoothStatus(userData.userId);
+                    // อัพเดต userData จาก localStorage หลังจากดึงสถานะบูธ
+                    const updatedUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                    if (updatedUser.userId === userData.userId) {
+                        userData = updatedUser;
+                    }
+                }
+            }
+
+            if (userData) {
+                document.getElementById('userDetail').innerHTML = 
+                    `<div style="background: #f0f9f4; padding: 15px; border-radius: 10px; margin: 1rem 0;">
+                        <h3>👤 ${userData.name}</h3>
+                        <p><strong>User ID:</strong> ${userData.userId}</p>
+                        <p style="color: #27ae60;">✅ ยืนยันผู้เข้าร่วมแล้ว</p>
+                    </div>`;
+                console.log('Showing qrStamp page with user data'); // debug
+            } else {
+                console.log('User not found anywhere, showing error'); // debug
+                document.getElementById('userDetail').innerHTML = 
+                    `<div style="background: #fdf2f2; padding: 15px; border-radius: 10px; margin: 1rem 0; color: #e74c3c;">
+                        <h3>❌ ไม่พบข้อมูลผู้ใช้</h3>
+                        <p><strong>User ID:</strong> ${userId}</p>
+                        <p>ไม่พบข้อมูลในระบบ กรุณาตรวจสอบชื่อหรือ User ID</p>
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 2px solid #ffc107; margin: 15px 0;">
+                            <div style="color: #856404; font-weight: bold; margin-bottom: 10px;">📋 หากยังไม่ได้ลงทะเบียน</div>
+                            <a href="https://forms.gle/2y12ALpP52XnCQ8W6" target="_blank" 
+                               style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; 
+                               text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 10px;">
+                               🔗 ลงทะเบียนที่นี่</a>
+                        </div>
+                        <button class="btn btn-secondary" onclick="goHome()" style="margin-top: 10px;">กลับหน้าแรก</button>
+                    </div>`;
+            }
+        }
+
+        async function selectBoothForStamp(boothId) {
+            selectedBoothForStamp = boothId;
+
+            // ค้นหาข้อมูลผู้ใช้
+            let userData = findUserData(currentStampUserId);
+
+            // ถ้าไม่เจอใน localStorage ให้ค้นหาจาก Google Sheet
+            if (!userData) {
+                userData = await findUserDataFromAPI(currentStampUserId);
+            }
+
+            if (!userData) {
+                alert('ไม่พบข้อมูลผู้ใช้ กรุณาลองใหม่อีกครั้ง');
+                return;
+            }
+
+            document.getElementById('confirmTitle').textContent = 
+                `🎯 Confirm Stamp บูธที่ ${boothId}`;
+
+            document.getElementById('confirmDetail').innerHTML = 
+                `<div style="background: #fff3cd; padding: 15px; border-radius: 10px; margin: 1rem 0;">
+                    <h3>ยืนยันการ Stamp</h3>
+                    <p><strong>ผู้เข้าร่วม:</strong> ${userData.name}</p>
+                    <p><strong>User ID:</strong> ${userData.userId}</p>
+                    <p><strong>บูธที่:</strong> ${boothId} - ${boothNames[boothId-1]}</p>
+                    <p style="color: #856404;"><strong>⚠️ โปรดยืนยันรหัสผ่านเจ้าหน้าที่</strong></p>
+                </div>`;
+
+            document.getElementById('confirmPassword').value = '';
+            document.getElementById('confirmResult').innerHTML = '';
+            showPage('confirmStamp');
+        }
+
+        // ฟังก์ชันตรวจสอบ URL parameters
+        function checkURLParameters() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const action = urlParams.get('action');
+            const userId = urlParams.get('userId');
+
+            console.log('URL Parameters:', { action, userId }); // debug
+
+            if (action === 'stamp' && userId) {
+                // ถ้ามี parameter สำหรับ stamp ให้ไปหน้า QR stamp
+                console.log('Redirecting to stamp page for user:', userId); // debug
+                setTimeout(() => {
+                    showQRStampPage(userId);
+                }, 100);
+                return true;
+            }
+
+            return false;
+        }
+
+        // เริ่มต้นระบบ
+        document.addEventListener('DOMContentLoaded', function() {
+            // ตรวจสอบ URL parameters ก่อน
+            if (!checkURLParameters()) {
+                // ถ้าไม่มี parameter ให้แสดงหน้าแรกปกติ
+                const currentUser = localStorage.getItem('currentUser');
+                if (currentUser) {
+                    console.log('พบข้อมูลผู้ใช้:', JSON.parse(currentUser));
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+</html>
