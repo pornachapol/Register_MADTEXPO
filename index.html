@@ -1,82 +1,371 @@
-// Next.js app folder structure is assumed
-// - pages/
-//   - index.tsx (Home page)
-//   - register.tsx
-//   - user.tsx
-//   - staff/
-//     - index.tsx (staff menu)
-//     - [boothId].tsx (staff booth scan)
-//   - api/
-//     - register.ts (Google Script proxy)
-//   - _app.tsx (global layout)
-// - components/
-//   - Input.tsx
-//   - Button.tsx
-//   - QRDisplay.tsx
-//   - BoothStatus.tsx
-
-// Example: pages/register.tsx
 import { useState } from 'react';
 import { useRouter } from 'next/router';
-import Head from 'next/head';
-import styles from '@/styles/Form.module.css';
-import Button from '@/components/Button';
-import Input from '@/components/Input';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [phone, setPhone] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    setError('');
     setLoading(true);
-
-    const normalizedPhone = phone.replace(/\D/g, '').replace(/^0/, '');
-    if (normalizedPhone.length !== 9) {
-      setError('เบอร์โทรศัพท์ไม่ถูกต้อง');
-      setLoading(false);
-      return;
-    }
-
+    setError('');
     try {
-      const res = await fetch('/api/register', {
+      const response = await fetch('/api/gs-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizedPhone }),
+        body: JSON.stringify({ action: 'checkParticipant', phone })
       });
-
-      const data = await res.json();
-      if (data.success && data.exists) {
-        localStorage.setItem('currentUser', JSON.stringify(data.participant));
-        router.push('/user');
+      const result = await response.json();
+      if (result.success && result.exists) {
+        router.push(`/user?userId=${result.participant.userId}`);
       } else {
-        setError('ไม่พบเบอร์ในระบบ หรือยังไม่ได้ลงทะเบียน');
+        setError('ไม่พบเบอร์โทรนี้ในระบบ');
       }
     } catch (err) {
-      console.error(err);
       setError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     }
     setLoading(false);
   };
 
   return (
-    <>
-      <Head><title>ลงทะเบียน</title></Head>
-      <main className={styles.container}>
-        <h1>📝 ลงทะเบียนเข้าร่วมงาน</h1>
-        <Input
-          label="เบอร์โทรศัพท์"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="เช่น 0812345678"
-        />
-        {error && <p className={styles.error}>{error}</p>}
-        <Button onClick={handleRegister} loading={loading}>
-          ยืนยันการลงทะเบียน
-        </Button>
-      </main>
-    </>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <h1 className="text-2xl font-bold mb-4">ลงทะเบียนเข้างาน</h1>
+      <input
+        type="tel"
+        placeholder="กรอกเบอร์โทร"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        className="border px-4 py-2 rounded mb-2 w-full max-w-xs"
+      />
+      <button
+        onClick={handleRegister}
+        className="bg-blue-600 text-white px-4 py-2 rounded w-full max-w-xs"
+        disabled={loading}
+      >
+        {loading ? 'กำลังตรวจสอบ...' : 'ลงทะเบียน'}
+      </button>
+      {error && <p className="text-red-600 mt-2">{error}</p>}
+    </div>
   );
 }
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import QRCode from 'qrcode.react';
+
+export default function UserPage() {
+  const router = useRouter();
+  const { userId } = router.query;
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/gs-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'getUserByUserId', userId })
+        });
+        const result = await res.json();
+        if (result.success) {
+          setUser(result.user);
+        } else {
+          setError(result.message);
+        }
+      } catch (err) {
+        setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUser();
+  }, [userId]);
+
+  const handleGoToStaff = (boothId: string) => {
+    router.push(`/staff/${boothId}?userId=${userId}&userPhone=${user?.phone}`);
+  };
+
+  if (loading) return <p className="p-4">กำลังโหลด...</p>;
+  if (error) return <p className="text-red-600 p-4">{error}</p>;
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <h1 className="text-xl font-bold mb-2">ยินดีต้อนรับ {user.name}</h1>
+      <p className="mb-4">User ID: {userId}</p>
+
+      <QRCode value={userId as string} size={180} className="mb-4" />
+
+      <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+        {[1, 2, 3, 4, 5].map((id) => (
+          <button
+            key={id}
+            onClick={() => handleGoToStaff(String(id))}
+            className="bg-green-600 text-white px-4 py-2 rounded"
+          >
+            เข้าบูธ {id}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+import { useRouter } from 'next/router';
+import { useState } from 'react';
+
+export default function StaffConfirmPage() {
+  const router = useRouter();
+  const { boothId, userId, userPhone } = router.query;
+
+  const [password, setPassword] = useState('');
+  const [result, setResult] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const staffPassword = '1234'; // 🔒 แนะนำให้ย้ายออกเป็น env หาก deploy จริง
+
+  const handleConfirm = async () => {
+    if (password !== staffPassword) {
+      setResult('❌ รหัสผ่านไม่ถูกต้อง');
+      return;
+    }
+
+    setLoading(true);
+    setResult('⏳ กำลังบันทึก...');
+
+    try {
+      const response = await fetch('/api/gs-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'registerStamp',
+          userId,
+          boothId,
+          userPhone,
+          staffId: 'staff'
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setResult(`✅ ${data.message}`);
+      } else {
+        setResult(`❌ ${data.message}`);
+      }
+    } catch (err) {
+      setResult('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <h1 className="text-xl font-bold mb-4">ยืนยันการ Stamp บูธ {boothId}</h1>
+      <input
+        type="password"
+        placeholder="รหัส Staff"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        className="border px-4 py-2 rounded mb-2 w-full max-w-xs"
+      />
+      <button
+        onClick={handleConfirm}
+        className="bg-blue-600 text-white px-4 py-2 rounded w-full max-w-xs"
+        disabled={loading}
+      >
+        ยืนยันการ Stamp
+      </button>
+      {result && <p className="mt-4 text-center whitespace-pre-line">{result}</p>}
+    </div>
+  );
+}
+// ✅ Next.js API Route: Proxy ไปยัง Google Apps Script
+
+export default async function handler(req, res) {
+  const scriptUrl = process.env.GS_WEBAPP_URL;
+
+  if (!scriptUrl) {
+    return res.status(500).json({ success: false, message: 'GS_WEBAPP_URL is not set in environment variables.' });
+  }
+
+  try {
+    const method = req.method;
+    const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+    const body = new URLSearchParams();
+    const input = method === 'GET' ? req.query : req.body;
+
+    for (const key in input) {
+      body.append(key, input[key]);
+    }
+
+    const response = await fetch(scriptUrl, {
+      method,
+      headers,
+      body: method === 'POST' ? body : undefined,
+    });
+
+    const data = await response.json();
+    res.status(200).json(data);
+  } catch (error) {
+    console.error('Proxy error:', error);
+    res.status(500).json({ success: false, message: 'Proxy request failed.' });
+  }
+}
+
+// .env.local file (อย่าลืมเพิ่ม)
+// GS_WEBAPP_URL=https://script.google.com/macros/s/AKfycb.../exec
+
+import { useEffect, useState } from 'react';
+
+export default function AdminDashboard() {
+  const [participants, setParticipants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchParticipants = async () => {
+      try {
+        const res = await fetch('/api/gs-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'getParticipants' })
+        });
+        const result = await res.json();
+        if (result.success) {
+          setParticipants(result.participants);
+        } else {
+          setError(result.message);
+        }
+      } catch (err) {
+        setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchParticipants();
+  }, []);
+
+  return (
+    <div className="min-h-screen p-4">
+      <h1 className="text-2xl font-bold mb-4">🧾 รายชื่อผู้เข้าร่วมงาน</h1>
+      {loading && <p>⏳ กำลังโหลดข้อมูล...</p>}
+      {error && <p className="text-red-500">{error}</p>}
+      {!loading && !error && (
+        <div className="overflow-x-auto">
+          <table className="table-auto border-collapse w-full text-sm">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border px-2 py-1">#</th>
+                <th className="border px-2 py-1">ชื่อ</th>
+                <th className="border px-2 py-1">อีเมล</th>
+                <th className="border px-2 py-1">เบอร์โทร</th>
+                <th className="border px-2 py-1">User ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {participants.map((p, idx) => (
+                <tr key={p.userId} className="hover:bg-gray-100">
+                  <td className="border px-2 py-1 text-center">{idx + 1}</td>
+                  <td className="border px-2 py-1">{p.name}</td>
+                  <td className="border px-2 py-1">{p.email}</td>
+                  <td className="border px-2 py-1">{p.phone}</td>
+                  <td className="border px-2 py-1">{p.userId}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+import { useEffect, useState } from 'react';
+
+export default function AdminDashboard() {
+  const [participants, setParticipants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [boothData, setBoothData] = useState({});
+
+  useEffect(() => {
+    const fetchParticipants = async () => {
+      try {
+        const res = await fetch('/api/gs-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'getParticipants' })
+        });
+        const result = await res.json();
+        if (result.success) {
+          setParticipants(result.participants);
+          fetchBoothStatuses(result.participants);
+        } else {
+          setError(result.message);
+        }
+      } catch (err) {
+        setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchParticipants();
+  }, []);
+
+  const fetchBoothStatuses = async (users) => {
+    const statuses = {};
+    await Promise.all(
+      users.map(async (user) => {
+        const res = await fetch('/api/gs-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'getBoothStatus', userId: user.userId })
+        });
+        const result = await res.json();
+        if (result.success) {
+          statuses[user.userId] = result.booths.length;
+        } else {
+          statuses[user.userId] = 0;
+        }
+      })
+    );
+    setBoothData(statuses);
+  };
+
+  return (
+    <div className="min-h-screen p-4">
+      <h1 className="text-2xl font-bold mb-4">🧾 รายชื่อผู้เข้าร่วมงาน</h1>
+      {loading && <p>⏳ กำลังโหลดข้อมูล...</p>}
+      {error && <p className="text-red-500">{error}</p>}
+      {!loading && !error && (
+        <div className="overflow-x-auto">
+          <table className="table-auto border-collapse w-full text-sm">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border px-2 py-1">#</th>
+                <th className="border px-2 py-1">ชื่อ</th>
+                <th className="border px-2 py-1">อีเมล</th>
+                <th className="border px-2 py-1">เบอร์โทร</th>
+                <th className="border px-2 py-1">User ID</th>
+                <th className="border px-2 py-1">จำนวน Booth ที่เข้า</th>
+              </tr>
+            </thead>
+            <tbody>
+              {participants.map((p, idx) => (
+                <tr key={p.userId} className="hover:bg-gray-100">
+                  <td className="border px-2 py-1 text-center">{idx + 1}</td>
+                  <td className="border px-2 py-1">{p.name}</td>
+                  <td className="border px-2 py-1">{p.email}</td>
+                  <td className="border px-2 py-1">{p.phone}</td>
+                  <td className="border px-2 py-1">{p.userId}</td>
+                  <td className="border px-2 py-1 text-center">{boothData[p.userId] || 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
